@@ -8,6 +8,10 @@ body {
   margin: 0;
 }
 
+:root {
+  --app-header-h: 64px;
+}
+
 @keyframes lazy-img-shimmer {
   0% {
     background-position: 200% 0;

@@ -9,9 +9,9 @@ import { UploadModal } from "@/components/UploadModal";
 import { SlideshowMode } from "@/components/SlideshowMode";
 import { MeetupTab } from "@/components/MeetupTab";
 import { BottomBar } from "@/components/BottomBar";
+import { getBottomBarHeight, getHeaderHeight } from "@/lib/layout";
 
-const HEADER_H = 64;
-const BOTTOMBAR_H = 72;
+const BOTTOMBAR_H = getBottomBarHeight();
 
 export default function PhotoWallPage() {
   const {
@@ -37,11 +37,12 @@ export default function PhotoWallPage() {
   const overviewApplied = useRef(false);
 
   const applyOverview = useCallback(() => {
+    const headerH = getHeaderHeight();
     const containerW = window.innerWidth;
-    const containerH = window.innerHeight - HEADER_H - BOTTOMBAR_H;
+    const containerH = window.innerHeight - headerH - BOTTOMBAR_H;
     const result = computeFitAll(photos, containerW, containerH);
     setZoom(result.zoom);
-    setOffset({ x: result.offset.x, y: result.offset.y + HEADER_H });
+    setOffset({ x: result.offset.x, y: result.offset.y + headerH });
   }, [photos]);
 
   useEffect(() => {
@@ -58,10 +59,11 @@ export default function PhotoWallPage() {
   }, [activeTab, visibleTabs]);
 
   const handleRecenter = useCallback(() => {
+    const headerH = getHeaderHeight();
     setZoom(1);
     setOffset({
       x: window.innerWidth / 2,
-      y: (window.innerHeight - HEADER_H - BOTTOMBAR_H) / 2 + HEADER_H,
+      y: (window.innerHeight - headerH - BOTTOMBAR_H) / 2 + headerH,
     });
   }, []);
 
