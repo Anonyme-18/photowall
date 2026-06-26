@@ -7,7 +7,6 @@ import { Header } from "@/components/Header";
 import { InfiniteCanvas, computeFitAll } from "@/components/InfiniteCanvas";
 import { UploadModal } from "@/components/UploadModal";
 import { SlideshowMode } from "@/components/SlideshowMode";
-import { EventInfoTab } from "@/components/EventInfoTab";
 import { MeetupTab } from "@/components/MeetupTab";
 import { BottomBar } from "@/components/BottomBar";
 
@@ -24,8 +23,9 @@ export default function PhotoWallPage() {
     updatePhotoPosition,
     updatePhotoRotation,
     eventConfig,
-    setEventConfig,
   } = useAppContext();
+
+  const visibleTabs = eventConfig.tabs.filter((t) => t.id !== "event");
 
   const [activeTab, setActiveTab] = useState("wall");
   const [showUpload, setShowUpload] = useState(false);
@@ -50,6 +50,12 @@ export default function PhotoWallPage() {
     applyOverview();
     overviewApplied.current = true;
   }, [isLoading, photos, applyOverview]);
+
+  useEffect(() => {
+    if (!visibleTabs.some((t) => t.id === activeTab)) {
+      setActiveTab("wall");
+    }
+  }, [activeTab, visibleTabs]);
 
   const handleRecenter = useCallback(() => {
     setZoom(1);
@@ -82,7 +88,7 @@ export default function PhotoWallPage() {
         photoCount={visibleCount}
         eventName={eventConfig.name}
         eventSubtitle={eventConfig.subtitle}
-        tabs={eventConfig.tabs}
+        tabs={visibleTabs}
       />
 
       <div className="flex-1 min-h-0 relative overflow-hidden">
@@ -103,15 +109,6 @@ export default function PhotoWallPage() {
         {activeTab === "meetup" && (
           <div className="h-full overflow-y-auto">
             <MeetupTab />
-          </div>
-        )}
-        {activeTab === "event" && (
-          <div className="h-full overflow-y-auto">
-            <EventInfoTab
-              eventName={eventConfig.name}
-              eventConfig={eventConfig}
-              onSaveField={(field, value) => setEventConfig({ ...eventConfig, [field]: value })}
-            />
           </div>
         )}
       </div>

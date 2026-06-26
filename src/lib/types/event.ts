@@ -17,7 +17,6 @@ export const DEFAULT_EVENT_CONFIG: EventConfig = {
   tabs: [
     { id: "wall", label: "Photo wall" },
     { id: "meetup", label: "Meetup" },
-    { id: "event", label: "Infos" },
   ],
   accentColor: "#f5c842",
   eventDate: "25 juin 2026",

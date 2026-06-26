@@ -39,8 +39,10 @@ npm start
 | Variable | Description |
 |---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | URL du projet Supabase |
-| `SUPABASE_SERVICE_ROLE_KEY` | Secret key (`sb_secret_...`) |
+| `SUPABASE_SERVICE_ROLE_KEY` | **Secret key** (`sb_secret_...`) — pas la clé publishable |
 | `ADMIN_PIN` | Code PIN pour `/admin` |
+
+> Sur Vercel : collez la clé **sans guillemets** ni espaces. Utilisez la **Secret key** du dashboard Supabase (Settings → API), pas la Publishable key.
 
 ### Supabase
 

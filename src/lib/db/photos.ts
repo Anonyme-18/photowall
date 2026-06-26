@@ -59,21 +59,13 @@ export async function uploadPhotoBuffer(
   contentType: string,
   photoId: string,
 ): Promise<string> {
-  const { getSupabaseAdmin } = await import("@/lib/supabase/admin");
-  const supabase = getSupabaseAdmin();
+  const { uploadStorageObject, getPublicStorageUrl } = await import("@/lib/supabase/admin");
 
   const ext = contentType === "image/png" ? "png" : contentType === "image/webp" ? "webp" : "jpg";
   const path = `${photoId}.${ext}`;
 
-  const { error } = await supabase.storage.from("photos").upload(path, buffer, {
-    contentType,
-    upsert: true,
-  });
-
-  if (error) throw error;
-
-  const { data } = supabase.storage.from("photos").getPublicUrl(path);
-  return data.publicUrl;
+  await uploadStorageObject("photos", path, buffer, contentType);
+  return getPublicStorageUrl("photos", path);
 }
 
 export async function uploadPhotoImage(dataUrl: string, photoId: string): Promise<string> {

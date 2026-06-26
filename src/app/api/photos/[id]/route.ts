@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getSupabaseAdmin, removeStorageObject } from "@/lib/supabase/admin";
 import { rowToPhoto, type PhotoRow } from "@/lib/db/photos";
 import {
   hasRotationColumn,
@@ -73,7 +73,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
       const { data: photo } = await supabase.from("photos").select("url").eq("id", id).single();
       if (photo?.url?.includes("/storage/v1/object/public/photos/")) {
         const path = photo.url.split("/photos/").pop();
-        if (path) await supabase.storage.from("photos").remove([path]);
+        if (path) await removeStorageObject("photos", path);
       }
     }
 
