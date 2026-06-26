@@ -1,0 +1,24 @@
+@import "../styles/fonts.css";
+@import "../styles/tailwind.css";
+@import "../styles/theme.css";
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+@keyframes lazy-img-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.lazy-img-shimmer {
+  background: linear-gradient(90deg, #e8e3dc 25%, #f0ebe4 50%, #e8e3dc 75%);
+  background-size: 200% 100%;
+  animation: lazy-img-shimmer 1.4s ease-in-out infinite;
+}
