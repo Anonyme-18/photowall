@@ -75,6 +75,11 @@ export function getSupabaseAdmin(): SupabaseClient {
   return adminClient;
 }
 
+function toFetchBody(body: Uint8Array | ArrayBuffer, contentType: string): BodyInit {
+  const buffer = Buffer.from(body instanceof ArrayBuffer ? new Uint8Array(body) : body);
+  return new Blob([buffer], { type: contentType });
+}
+
 /** Upload Storage via REST — évite l'erreur JWS avec les clés sb_secret_. */
 export async function uploadStorageObject(
   bucket: string,
@@ -101,7 +106,7 @@ export async function uploadStorageObject(
       "Content-Type": contentType,
       "x-upsert": "true",
     },
-    body: body instanceof Uint8Array ? body : new Uint8Array(body),
+    body: toFetchBody(body, contentType),
   });
 
   if (!res.ok) {
