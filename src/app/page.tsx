@@ -23,6 +23,7 @@ export default function PhotoWallPage() {
     updatePhotoPosition,
     updatePhotoRotation,
     eventConfig,
+    myPhotoIds,
   } = useAppContext();
 
   const visibleTabs = eventConfig.tabs.filter((t) => t.id !== "event");
@@ -106,6 +107,7 @@ export default function PhotoWallPage() {
             offset={offset}
             onZoomChange={setZoom}
             onOffsetChange={setOffset}
+            myPhotoIds={myPhotoIds}
           />
         )}
         {activeTab === "meetup" && (

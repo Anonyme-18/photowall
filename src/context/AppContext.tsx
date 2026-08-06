@@ -25,6 +25,7 @@ interface AppContextValue {
   eventConfig: EventConfig;
   setEventConfig: (cfg: EventConfig) => Promise<void>;
   refreshPhotos: () => Promise<void>;
+  myPhotoIds: string[];
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -35,8 +36,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [eventConfig, setEventConfigState] = useState<EventConfig>(DEFAULT_EVENT_CONFIG);
   const [isLoading, setIsLoading] = useState(true);
+  const [myPhotoIds, setMyPhotoIds] = useState<string[]>([]);
   const photosRef = useRef(photos);
   photosRef.current = photos;
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("my_uploaded_photos");
+        if (stored) {
+          setMyPhotoIds(JSON.parse(stored));
+        }
+      } catch (e) {
+        console.error("Erreur lecture localStorage :", e);
+      }
+    }
+  }, []);
 
   const refreshPhotos = useCallback(async () => {
     const data = await api.fetchPhotos();
@@ -113,6 +128,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
         y: data.y,
       });
       setPhotos((prev) => [photo, ...prev.filter((p) => p.id !== photo.id)]);
+
+      setMyPhotoIds((prev) => {
+        const updated = [...prev, photo.id];
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem("my_uploaded_photos", JSON.stringify(updated));
+          } catch (e) {
+            console.error(e);
+          }
+        }
+        return updated;
+      });
     },
     [],
   );
@@ -136,6 +163,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const deletePhoto = useCallback(async (id: string) => {
     const snapshot = photosRef.current;
     setPhotos((prev) => prev.filter((p) => p.id !== id));
+
+    setMyPhotoIds((prev) => {
+      const updated = prev.filter((item) => item !== id);
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("my_uploaded_photos", JSON.stringify(updated));
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      return updated;
+    });
 
     try {
       await api.removePhoto(id);
@@ -183,6 +222,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         eventConfig,
         setEventConfig,
         refreshPhotos,
+        myPhotoIds,
       }}
     >
       {children}

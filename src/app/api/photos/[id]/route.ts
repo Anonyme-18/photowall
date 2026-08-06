@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { getSupabaseAdmin, removeStorageObject } from "@/lib/supabase/admin";
 import { rowToPhoto, type PhotoRow } from "@/lib/db/photos";
 import {
@@ -6,12 +7,26 @@ import {
   photoSelectColumns,
 } from "@/lib/db/photoSchema";
 import { apiError } from "@/lib/api/errors";
+import { ADMIN_COOKIE, isValidSessionToken } from "@/lib/admin/auth";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function PATCH(request: Request, context: RouteContext) {
   try {
     const { id } = await context.params;
+
+    const cookieStore = await cookies();
+    const adminToken = cookieStore.get(ADMIN_COOKIE)?.value;
+    const isAdmin = isValidSessionToken(adminToken);
+
+    if (!isAdmin) {
+      const uploadedPhotos = cookieStore.get("uploaded_photos")?.value ?? "";
+      const list = uploadedPhotos ? uploadedPhotos.split(",") : [];
+      if (!list.includes(id)) {
+        return NextResponse.json({ error: "Non autorisé" }, { status: 403 });
+      }
+    }
+
     const body = await request.json();
     const updates: Record<string, unknown> = {};
     const requestedRotation =
@@ -67,6 +82,19 @@ export async function PATCH(request: Request, context: RouteContext) {
 export async function DELETE(_request: Request, context: RouteContext) {
   try {
     const { id } = await context.params;
+
+    const cookieStore = await cookies();
+    const adminToken = cookieStore.get(ADMIN_COOKIE)?.value;
+    const isAdmin = isValidSessionToken(adminToken);
+
+    if (!isAdmin) {
+      const uploadedPhotos = cookieStore.get("uploaded_photos")?.value ?? "";
+      const list = uploadedPhotos ? uploadedPhotos.split(",") : [];
+      if (!list.includes(id)) {
+        return NextResponse.json({ error: "Non autorisé à supprimer cette photo" }, { status: 403 });
+      }
+    }
+
     const supabase = getSupabaseAdmin();
 
     if (id.startsWith("user-")) {

@@ -40,6 +40,7 @@ interface InfiniteCanvasProps {
   offset: { x: number; y: number };
   onZoomChange: (z: number) => void;
   onOffsetChange: (o: { x: number; y: number }) => void;
+  myPhotoIds: string[];
 }
 
 function PolaroidCameraIllustration() {
@@ -153,6 +154,7 @@ export function InfiniteCanvas({
   offset,
   onZoomChange,
   onOffsetChange,
+  myPhotoIds,
 }: InfiniteCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -163,6 +165,7 @@ export function InfiniteCanvas({
   const onOffsetChangeRef = useRef(onOffsetChange);
   const onUpdatePositionRef = useRef(onUpdatePosition);
   const photosRef = useRef(photos);
+  const myPhotoIdsRef = useRef(myPhotoIds);
   const animFrameRef = useRef<number | null>(null);
   zoomRef.current = zoom;
   offsetRef.current = offset;
@@ -170,6 +173,7 @@ export function InfiniteCanvas({
   onOffsetChangeRef.current = onOffsetChange;
   onUpdatePositionRef.current = onUpdatePosition;
   photosRef.current = photos;
+  myPhotoIdsRef.current = myPhotoIds;
 
   const dragRef = useRef<DragState | null>(null);
   const containerRefForDrag = useRef<HTMLDivElement | null>(null);
@@ -265,6 +269,9 @@ export function InfiniteCanvas({
       }
 
       if (drag.type === "photo") {
+        const isMyPhoto = myPhotoIdsRef.current.includes(drag.photoId);
+        if (!isMyPhoto) return;
+
         if (!drag.hasMoved) {
           const dx = e.clientX - drag.startClientX;
           const dy = e.clientY - drag.startClientY;
@@ -473,6 +480,7 @@ export function InfiniteCanvas({
           const isDragging = draggingPhotoId === photo.id;
           const isFocused = focusedPhotoId === photo.id;
           const userPhoto = isUserPhoto(photo.id);
+          const isMyPhoto = myPhotoIds.includes(photo.id);
           const rotation = userPhoto ? (photo.rotation ?? 0) : deterministicRotation(photo.id);
 
           return (
@@ -483,8 +491,8 @@ export function InfiniteCanvas({
                 left: 0,
                 top: 0,
                 transform: isDragging ? undefined : `translate3d(${px}px, ${py}px, 0)`,
-                cursor: isDragging ? "grabbing" : userPhoto ? "grab" : "grab",
-                zIndex: isDragging || isFocused ? 100 : userPhoto ? 50 : 1,
+                cursor: isDragging ? "grabbing" : isMyPhoto ? "grab" : "pointer",
+                zIndex: isDragging || isFocused ? 100 : isMyPhoto ? 50 : 1,
                 touchAction: "none",
                 overflow: "visible",
               }}
@@ -499,11 +507,11 @@ export function InfiniteCanvas({
                 photo={photo}
                 rotation={rotation}
                 onToggleHide={onToggleHide}
-                isAdmin={true}
+                isAdmin={false}
                 eventName={eventName}
                 dragging={isDragging}
                 focused={isFocused}
-                isUserPhoto={userPhoto}
+                isUserPhoto={isMyPhoto}
                 onDelete={() => onDeletePhoto(photo.id)}
                 onTilt={(r) => onUpdateRotation(photo.id, r)}
               />

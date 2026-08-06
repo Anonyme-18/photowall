@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { X, Share2, Camera, ImageIcon, ChevronLeft, Check, SwitchCamera, Circle } from "lucide-react";
+import { toast } from "sonner";
 
 interface UploadModalProps {
   onClose: () => void;
@@ -418,9 +419,34 @@ export function UploadModal({ onClose, onUpload, eventName = "Photowall" }: Uplo
               {/* Actions */}
               <div className="flex gap-2 pt-1">
                 <button
-                  onClick={() => {
-                    if (navigator.share) navigator.share({ title: `${eventName} – Photo Wall`, url: window.location.href });
-                    else navigator.clipboard.writeText(window.location.href);
+                  onClick={async () => {
+                    const shareData = {
+                      title: `${eventName} – Photo Wall`,
+                      text: `Découvrez le mur de photos de l'événement ${eventName} !`,
+                      url: window.location.href,
+                    };
+                    if (navigator.share) {
+                      try {
+                        await navigator.share(shareData);
+                        toast.success("Lien partagé !");
+                      } catch (err) {
+                        if (err instanceof Error && err.name !== "AbortError") {
+                          try {
+                            await navigator.clipboard.writeText(window.location.href);
+                            toast.success("Lien copié dans le presse-papiers !");
+                          } catch {
+                            toast.error("Impossible de copier le lien");
+                          }
+                        }
+                      }
+                    } else {
+                      try {
+                        await navigator.clipboard.writeText(window.location.href);
+                        toast.success("Lien copié dans le presse-papiers !");
+                      } catch {
+                        toast.error("Impossible de copier le lien");
+                      }
+                    }
                   }}
                   className="flex items-center justify-center gap-1.5 py-3 rounded-xl flex-1 transition-all hover:bg-gray-50"
                   style={{ border: "1.5px solid rgba(0,0,0,0.12)", fontSize: "0.82rem", fontWeight: 600, color: "#1a1512" }}

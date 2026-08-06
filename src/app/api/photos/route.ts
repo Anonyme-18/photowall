@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { apiError } from "@/lib/api/errors";
 import {
@@ -122,7 +123,20 @@ export async function POST(request: Request) {
 
     if (error) throw error;
 
-    return NextResponse.json({ photo: rowToPhoto(data as PhotoRow) }, { status: 201 });
+    const cookieStore = await cookies();
+    const existing = cookieStore.get("uploaded_photos")?.value ?? "";
+    const list = existing ? existing.split(",") : [];
+    if (!list.includes(id)) {
+      list.push(id);
+    }
+
+    const response = NextResponse.json({ photo: rowToPhoto(data as PhotoRow) }, { status: 201 });
+    response.cookies.set("uploaded_photos", list.join(","), {
+      path: "/",
+      maxAge: 60 * 60 * 24 * 365,
+      sameSite: "lax",
+    });
+    return response;
   } catch (err) {
     return apiError(err, "POST /api/photos");
   }
