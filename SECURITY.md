@@ -8,6 +8,6 @@ Please do not disclose security issues in a public GitHub issue. Contact the rep
 
 - Use a unique `ADMIN_PIN` and a long random `ADMIN_SESSION_SECRET`.
 - Store secrets only in Vercel environment variables or a local `.env.local` file.
-- Never use a Supabase Secret key in client-side code.
-- Review Supabase Storage and RLS policies before production use.
+- Never use the Neon connection string or UploadThing token in client-side code.
+- Keep the old Supabase migration service-role key local and revoke it after migration.
 - Rotate credentials immediately if they are accidentally exposed.

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getNeon } from "@/lib/db/neon";
 import { apiError } from "@/lib/api/errors";
 import {
   rowToPhoto,
@@ -8,10 +8,6 @@ import {
   uploadPhotoBuffer,
   type PhotoRow,
 } from "@/lib/db/photos";
-import {
-  omitRotationIfMissing,
-  photoSelectColumns,
-} from "@/lib/db/photoSchema";
 import { createOwnerToken, ownerCookieName } from "@/lib/admin/auth";
 
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -43,14 +39,15 @@ async function resolveImageUrl(
   id: string,
   url: string | undefined,
   imageFile: File | Blob | null,
-): Promise<string> {
+): Promise<{ url: string; key: string | null }> {
   if (imageFile && imageFile.size > 0) {
     if (imageFile.size > MAX_IMAGE_BYTES || !ALLOWED_IMAGE_TYPES.has(imageFile.type)) {
       throw new Error("Image invalide ou trop lourde (JPG, PNG ou WebP de 10 Mo maximum)");
     }
     const contentType = imageFile.type || "image/jpeg";
     const buffer = Buffer.from(await imageFile.arrayBuffer());
-    return uploadPhotoBuffer(buffer, contentType, id);
+    const uploaded = await uploadPhotoBuffer(buffer, contentType, id);
+    return { url: uploaded.url, key: uploaded.key };
   }
 
   if (!url) {
@@ -59,23 +56,17 @@ async function resolveImageUrl(
 
   if (url.startsWith("data:image/")) {
     if (url.length > 14 * 1024 * 1024) throw new Error("Image trop lourde");
-    return uploadPhotoImage(url, id);
+    const uploaded = await uploadPhotoImage(url, id);
+    return { url: uploaded.url, key: uploaded.key };
   }
 
-  return validateUrl(url);
+  return { url: validateUrl(url), key: null };
 }
 
 export async function GET() {
   try {
-    const supabase = getSupabaseAdmin();
-    const columns = await photoSelectColumns(supabase);
-    const { data, error } = await supabase
-      .from("photos")
-      .select(columns)
-      .order("timestamp", { ascending: false });
-
-    if (error) throw error;
-
+    const sql = getNeon();
+    const data = await sql`SELECT id, url, storage_key, author, timestamp, hidden, aspect_ratio, accent_color, x, y, rotation FROM photos ORDER BY timestamp DESC`;
     const photos = (data as unknown as PhotoRow[]).map(rowToPhoto);
     return NextResponse.json({ photos });
   } catch (err) {
@@ -137,25 +128,13 @@ export async function POST(request: Request) {
 
     const id = `user-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const pos = x != null && y != null ? { x, y } : randomPhotoPosition();
-    const finalUrl = await resolveImageUrl(id, url, imageFile);
-
-    const supabase = getSupabaseAdmin();
-    const row = await omitRotationIfMissing(supabase, {
-      id,
-      url: finalUrl,
-      author,
-      timestamp: new Date().toISOString(),
-      hidden: false,
-      aspect_ratio: aspectRatio ?? 1.333,
-      accent_color: accentColor ?? null,
-      x: pos.x,
-      y: pos.y,
-      rotation: 0,
-    });
-
-    const { data, error } = await supabase.from("photos").insert(row).select("*").single();
-
-    if (error) throw error;
+    const image = await resolveImageUrl(id, url, imageFile);
+    const sql = getNeon();
+    const [data] = await sql`
+      INSERT INTO photos (id, url, storage_key, author, timestamp, hidden, aspect_ratio, accent_color, x, y, rotation)
+      VALUES (${id}, ${image.url}, ${image.key}, ${author}, ${new Date().toISOString()}, false, ${aspectRatio}, ${accentColor ?? null}, ${pos.x}, ${pos.y}, 0)
+      RETURNING id, url, storage_key, author, timestamp, hidden, aspect_ratio, accent_color, x, y, rotation
+    `;
 
     const response = NextResponse.json({ photo: rowToPhoto(data as PhotoRow) }, { status: 201 });
     response.cookies.set(ownerCookieName(id), createOwnerToken(id), {

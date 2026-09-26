@@ -1,8 +1,10 @@
 import type { Photo } from "@/components/types";
+import { uploadImage, type UploadedImage } from "@/lib/storage/uploadthing";
 
 export interface PhotoRow {
   id: string;
   url: string;
+  storage_key?: string | null;
   author: string;
   timestamp: string;
   hidden: boolean;
@@ -58,17 +60,11 @@ export async function uploadPhotoBuffer(
   buffer: Buffer,
   contentType: string,
   photoId: string,
-): Promise<string> {
-  const { uploadStorageObject, getPublicStorageUrl } = await import("@/lib/supabase/admin");
-
-  const ext = contentType === "image/png" ? "png" : contentType === "image/webp" ? "webp" : "jpg";
-  const path = `${photoId}.${ext}`;
-
-  await uploadStorageObject("photos", path, buffer, contentType);
-  return getPublicStorageUrl("photos", path);
+): Promise<UploadedImage> {
+  return uploadImage(buffer, contentType, photoId);
 }
 
-export async function uploadPhotoImage(dataUrl: string, photoId: string): Promise<string> {
+export async function uploadPhotoImage(dataUrl: string, photoId: string): Promise<UploadedImage> {
   const match = dataUrl.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+=*)$/i);
   if (!match) throw new Error("Format d'image invalide");
 

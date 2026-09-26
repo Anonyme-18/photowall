@@ -1,11 +1,8 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { getSupabaseAdmin, removeStorageObject } from "@/lib/supabase/admin";
+import { getNeon } from "@/lib/db/neon";
+import { deleteImage } from "@/lib/storage/uploadthing";
 import { rowToPhoto, type PhotoRow } from "@/lib/db/photos";
-import {
-  hasRotationColumn,
-  photoSelectColumns,
-} from "@/lib/db/photoSchema";
 import { apiError } from "@/lib/api/errors";
 import { ADMIN_COOKIE, isValidOwnerToken, isValidSessionToken, ownerCookieName } from "@/lib/admin/auth";
 
@@ -39,39 +36,26 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json({ error: "Aucune mise à jour" }, { status: 400 });
     }
 
-    const supabase = getSupabaseAdmin();
-    const rotationSupported = await hasRotationColumn(supabase);
-    const dbUpdates = rotationSupported
-      ? updates
-      : Object.fromEntries(Object.entries(updates).filter(([key]) => key !== "rotation"));
-
-    if (Object.keys(dbUpdates).length > 0) {
-      const { data, error } = await supabase
-        .from("photos")
-        .update(dbUpdates)
-        .eq("id", id)
-        .select("*")
-        .single();
-
-      if (error) throw error;
-
-      const photo = rowToPhoto(data as unknown as PhotoRow);
-      if (!rotationSupported && requestedRotation !== undefined) {
-        photo.rotation = requestedRotation;
-      }
-      return NextResponse.json({ photo });
+    if (typeof updates.x === "number" && (!Number.isFinite(updates.x) || Math.abs(updates.x) > 100000) ||
+        typeof updates.y === "number" && (!Number.isFinite(updates.y) || Math.abs(updates.y) > 100000) ||
+        requestedRotation !== undefined && (!Number.isFinite(requestedRotation) || Math.abs(requestedRotation) > 360)) {
+      return NextResponse.json({ error: "Valeur invalide" }, { status: 400 });
     }
 
-    const columns = await photoSelectColumns(supabase);
-    const { data, error } = await supabase.from("photos").select(columns).eq("id", id).single();
-    if (error) throw error;
+    const sql = getNeon();
+    const [data] = await sql`
+      UPDATE photos
+      SET hidden = CASE WHEN ${Object.hasOwn(updates, "hidden")} THEN ${updates.hidden ?? null} ELSE hidden END,
+          x = CASE WHEN ${Object.hasOwn(updates, "x")} THEN ${updates.x ?? null} ELSE x END,
+          y = CASE WHEN ${Object.hasOwn(updates, "y")} THEN ${updates.y ?? null} ELSE y END,
+          rotation = CASE WHEN ${Object.hasOwn(updates, "rotation")} THEN ${updates.rotation ?? null} ELSE rotation END
+      WHERE id = ${id}
+      RETURNING id, url, storage_key, author, timestamp, hidden, aspect_ratio, accent_color, x, y, rotation
+    `;
     if (!data) {
       return NextResponse.json({ error: "Photo introuvable" }, { status: 404 });
     }
-
-    const photo = rowToPhoto(data as unknown as PhotoRow);
-    if (requestedRotation !== undefined) photo.rotation = requestedRotation;
-    return NextResponse.json({ photo });
+    return NextResponse.json({ photo: rowToPhoto(data as unknown as PhotoRow) });
   } catch (err) {
     return apiError(err, "PATCH /api/photos/[id]");
   }
@@ -91,18 +75,17 @@ export async function DELETE(_request: Request, context: RouteContext) {
       }
     }
 
-    const supabase = getSupabaseAdmin();
+    const sql = getNeon();
+    const [photo] = await sql`DELETE FROM photos WHERE id = ${id} RETURNING storage_key`;
+    if (!photo) return NextResponse.json({ error: "Photo introuvable" }, { status: 404 });
 
-    if (id.startsWith("user-")) {
-      const { data: photo } = await supabase.from("photos").select("url").eq("id", id).single();
-      if (photo?.url?.includes("/storage/v1/object/public/photos/")) {
-        const path = photo.url.split("/photos/").pop();
-        if (path) await removeStorageObject("photos", path);
+    if (typeof photo.storage_key === "string" && photo.storage_key) {
+      try {
+        await deleteImage(photo.storage_key);
+      } catch (cleanupError) {
+        console.error("[DELETE /api/photos] UploadThing cleanup failed", cleanupError);
       }
     }
-
-    const { error } = await supabase.from("photos").delete().eq("id", id);
-    if (error) throw error;
 
     return NextResponse.json({ ok: true });
   } catch (err) {

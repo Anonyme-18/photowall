@@ -1,13 +1,14 @@
 # Photo Wall
 
-Photo Wall is a collaborative event gallery built with Next.js, TypeScript and Supabase. Guests can share photos in real time, while event organizers manage the wall from a protected dashboard.
+Photo Wall is a collaborative event gallery built with Next.js, TypeScript, Neon Postgres and UploadThing. Guests can share photos in real time, while event organizers manage the wall from a protected dashboard.
 
 ## Features
 
 - Collaborative photo uploads from a phone, camera or gallery
 - Responsive infinite wall with slideshow mode and ambient music
 - Admin dashboard for moderation and event configuration
-- Supabase database and Storage integration
+- Neon PostgreSQL database with a small server-side data layer
+- UploadThing image storage with server-only credentials
 - Stateless, signed ownership tokens for guest photo management
 - Production-ready deployment on Vercel
 
@@ -15,13 +16,15 @@ Photo Wall is a collaborative event gallery built with Next.js, TypeScript and S
 
 - Next.js 15 App Router
 - React 18 and TypeScript
-- Supabase (Postgres, Row Level Security and Storage)
+- Neon PostgreSQL with `@neondatabase/serverless`
+- UploadThing server API for image storage
 - Tailwind CSS and Radix UI
 
 ## Requirements
 
 - Node.js 20 or newer
-- A Supabase project
+- A Neon project
+- An UploadThing app
 
 ## Local development
 
@@ -35,25 +38,34 @@ Open [http://localhost:3000](http://localhost:3000) for the photo wall and `/adm
 
 ## Environment variables
 
-Copy `.env.example` to `.env.local` and provide:
-
 | Variable | Description |
 | --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase Secret key; server-side only |
+| `DATABASE_URL` | Neon PostgreSQL connection string; server-side only |
+| `UPLOADTHING_TOKEN` | UploadThing server token; never expose it to the browser |
 | `ADMIN_PIN` | Admin login PIN; use a long, unique value |
 | `ADMIN_SESSION_SECRET` | Long random secret used to sign sessions and ownership tokens |
 
-Never expose or commit `.env.local`, Supabase Secret keys, admin PINs or session secrets. Configure the same variables in Vercel Project Settings → Environment Variables.
+Never expose or commit `.env.local`, database URLs, UploadThing tokens, admin PINs or session secrets. Configure these variables in Vercel Project Settings → Environment Variables.
 
-## Supabase setup
+## Database setup
 
-1. Run `supabase/schema.sql` in the Supabase SQL Editor.
-2. Run `supabase/migration_rotation.sql` for existing databases.
-3. Confirm that the `photos` Storage bucket exists and is public for read access.
-4. Keep the Supabase Secret key exclusively in server-side environment variables.
+1. Create a Neon project.
+2. Run [`neon/schema.sql`](neon/schema.sql) in the Neon SQL Editor.
+3. Copy the Neon connection string to `DATABASE_URL`.
 
-The application uses server-side Supabase access for its API routes. The database schema enables Row Level Security and exposes only the intended public read policies.
+## Migrating from Supabase
+
+The repository includes a one-time migration utility that copies the event configuration and photo records from the existing Supabase project. Supabase-hosted images are downloaded and re-uploaded to UploadThing, and their new UploadThing keys are stored in Neon.
+
+Set these temporary variables locally, then run:
+
+```bash
+$env:SUPABASE_MIGRATION_URL="https://your-project.supabase.co"
+$env:SUPABASE_MIGRATION_SERVICE_ROLE_KEY="your_old_service_role_key"
+npm run migrate:supabase
+```
+
+The migration is idempotent by photo ID. Review the result before deleting anything from Supabase. The migration script does not delete data from the old services.
 
 ## Production
 
@@ -63,15 +75,16 @@ npm run build
 npm start
 ```
 
-To deploy, import the repository into Vercel, select the root directory, add the environment variables, and use the default Next.js build settings.
+To deploy, import the repository into Vercel, add `DATABASE_URL`, `UPLOADTHING_TOKEN`, `ADMIN_PIN` and `ADMIN_SESSION_SECRET`, and use the default Next.js build settings.
 
 ## Security notes
 
+- Database and UploadThing credentials are used only in server-side code.
 - Admin mutations require an HTTP-only signed session cookie.
 - Guest photo mutations require a signed per-photo ownership token.
 - Uploads are restricted to JPEG, PNG and WebP files up to 10 MB.
 - API input is validated server-side; client-side validation is only a convenience.
-- Do not use the example PIN or example session secret in production.
+- UploadThing file deletion uses the stored server-side file key, never a user-provided URL.
 
 For vulnerability reports, see [SECURITY.md](SECURITY.md).
 

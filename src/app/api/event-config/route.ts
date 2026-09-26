@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getNeon } from "@/lib/db/neon";
 import type { EventConfig } from "@/lib/types/event";
 import { DEFAULT_EVENT_CONFIG } from "@/lib/types/event";
 import { apiError } from "@/lib/api/errors";
@@ -8,10 +8,8 @@ import { isAdminAuthenticated } from "@/lib/admin/auth";
 
 export async function GET() {
   try {
-    const supabase = getSupabaseAdmin();
-    const { data, error } = await supabase.from("event_config").select("config").eq("id", 1).maybeSingle();
-
-    if (error) throw error;
+    const sql = getNeon();
+    const [data] = await sql`SELECT config FROM event_config WHERE id = 1 LIMIT 1`;
 
     const config: EventConfig = data?.config
       ? { ...DEFAULT_EVENT_CONFIG, ...(data.config as EventConfig) }
@@ -47,14 +45,13 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "Config invalide" }, { status: 400 });
     }
 
-    const supabase = getSupabaseAdmin();
-    const { data, error } = await supabase
-      .from("event_config")
-      .upsert({ id: 1, config })
-      .select("config")
-      .single();
-
-    if (error) throw error;
+    const sql = getNeon();
+    const [data] = await sql`
+      INSERT INTO event_config (id, config)
+      VALUES (1, ${JSON.stringify(config)}::jsonb)
+      ON CONFLICT (id) DO UPDATE SET config = EXCLUDED.config
+      RETURNING config
+    `;
 
     return NextResponse.json({ config: data.config as EventConfig });
   } catch (err) {
