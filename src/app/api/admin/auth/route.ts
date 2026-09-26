@@ -5,9 +5,14 @@ import {
   createSessionToken,
   verifyAdminPin,
 } from "@/lib/admin/auth";
+import { clearRateLimit, isRateLimited } from "@/lib/security/rateLimit";
 
 export async function POST(request: Request) {
   try {
+    const address = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    if (isRateLimited(`admin-login:${address}`)) {
+      return NextResponse.json({ error: "Trop de tentatives. Réessayez plus tard." }, { status: 429 });
+    }
     const body = await request.json();
     const pin = typeof body.pin === "string" ? body.pin.trim() : "";
 
@@ -15,6 +20,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Code PIN incorrect" }, { status: 401 });
     }
 
+    clearRateLimit(`admin-login:${address}`);
     const res = NextResponse.json({ ok: true });
     res.cookies.set(ADMIN_COOKIE, createSessionToken(), ADMIN_COOKIE_OPTIONS);
     return res;

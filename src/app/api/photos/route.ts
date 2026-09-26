@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { apiError } from "@/lib/api/errors";
 import {
@@ -10,11 +9,35 @@ import {
   type PhotoRow,
 } from "@/lib/db/photos";
 import {
-  hasRotationColumn,
-  isRotationSchemaError,
   omitRotationIfMissing,
   photoSelectColumns,
 } from "@/lib/db/photoSchema";
+import { createOwnerToken, ownerCookieName } from "@/lib/admin/auth";
+
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const MAX_AUTHOR_LENGTH = 80;
+const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+
+function validNumber(value: unknown, min: number, max: number): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= min && value <= max;
+}
+
+function validateUrl(value: string): string {
+  if (value.length > 2048) throw new Error("URL d'image trop longue");
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") throw new Error();
+  } catch {
+    throw new Error("URL d'image invalide");
+  }
+  return value;
+}
+
+function validateAccentColor(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  if (!/^#[0-9a-f]{6}$/i.test(value)) throw new Error("Couleur invalide");
+  return value;
+}
 
 async function resolveImageUrl(
   id: string,
@@ -22,6 +45,9 @@ async function resolveImageUrl(
   imageFile: File | Blob | null,
 ): Promise<string> {
   if (imageFile && imageFile.size > 0) {
+    if (imageFile.size > MAX_IMAGE_BYTES || !ALLOWED_IMAGE_TYPES.has(imageFile.type)) {
+      throw new Error("Image invalide ou trop lourde (JPG, PNG ou WebP de 10 Mo maximum)");
+    }
     const contentType = imageFile.type || "image/jpeg";
     const buffer = Buffer.from(await imageFile.arrayBuffer());
     return uploadPhotoBuffer(buffer, contentType, id);
@@ -32,10 +58,11 @@ async function resolveImageUrl(
   }
 
   if (url.startsWith("data:image/")) {
+    if (url.length > 14 * 1024 * 1024) throw new Error("Image trop lourde");
     return uploadPhotoImage(url, id);
   }
 
-  return url;
+  return validateUrl(url);
 }
 
 export async function GET() {
@@ -69,7 +96,8 @@ export async function POST(request: Request) {
 
     if (contentType.includes("multipart/form-data")) {
       const form = await request.formData();
-      imageFile = form.get("image") as File | null;
+      const candidate = form.get("image");
+      imageFile = candidate instanceof File ? candidate : null;
       author = String(form.get("author") ?? "").trim();
       const ratio = form.get("aspectRatio");
       if (ratio != null) aspectRatio = Number(ratio) || 1.333;
@@ -101,6 +129,12 @@ export async function POST(request: Request) {
       author = author?.trim() ?? "";
     }
 
+    if (author.length > MAX_AUTHOR_LENGTH) throw new Error("Nom trop long");
+    if (!validNumber(aspectRatio, 0.1, 10)) throw new Error("Format d'image invalide");
+    if (x !== undefined && !validNumber(x, -100000, 100000)) throw new Error("Position X invalide");
+    if (y !== undefined && !validNumber(y, -100000, 100000)) throw new Error("Position Y invalide");
+    accentColor = validateAccentColor(accentColor);
+
     const id = `user-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const pos = x != null && y != null ? { x, y } : randomPhotoPosition();
     const finalUrl = await resolveImageUrl(id, url, imageFile);
@@ -123,16 +157,11 @@ export async function POST(request: Request) {
 
     if (error) throw error;
 
-    const cookieStore = await cookies();
-    const existing = cookieStore.get("uploaded_photos")?.value ?? "";
-    const list = existing ? existing.split(",") : [];
-    if (!list.includes(id)) {
-      list.push(id);
-    }
-
     const response = NextResponse.json({ photo: rowToPhoto(data as PhotoRow) }, { status: 201 });
-    response.cookies.set("uploaded_photos", list.join(","), {
+    response.cookies.set(ownerCookieName(id), createOwnerToken(id), {
       path: "/",
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
       maxAge: 60 * 60 * 24 * 365,
       sameSite: "lax",
     });

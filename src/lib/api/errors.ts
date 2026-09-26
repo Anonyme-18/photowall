@@ -38,12 +38,12 @@ export function apiError(err: unknown, label?: string) {
           { status: 500 },
         );
       }
-      return NextResponse.json({ error: String(message) }, { status: 500 });
+      return NextResponse.json({ error: "Une erreur serveur est survenue." }, { status: 500 });
     }
   }
 
   if (err instanceof Error) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: "Une erreur serveur est survenue." }, { status: 500 });
   }
 
   return NextResponse.json({ error: "Erreur inconnue" }, { status: 500 });

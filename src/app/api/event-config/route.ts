@@ -3,6 +3,8 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import type { EventConfig } from "@/lib/types/event";
 import { DEFAULT_EVENT_CONFIG } from "@/lib/types/event";
 import { apiError } from "@/lib/api/errors";
+import { cookies } from "next/headers";
+import { isAdminAuthenticated } from "@/lib/admin/auth";
 
 export async function GET() {
   try {
@@ -23,10 +25,25 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   try {
+    if (!isAdminAuthenticated(await cookies())) {
+      return NextResponse.json({ error: "Authentification requise" }, { status: 401 });
+    }
     const body = await request.json();
     const config = body.config as EventConfig;
 
-    if (!config?.name) {
+    const textFields = [
+      config?.name,
+      config?.subtitle,
+      config?.eventDate,
+      config?.eventTime,
+      config?.eventLocation,
+      config?.eventParticipants,
+    ];
+    if (!config?.name || textFields.some((value) => typeof value !== "string" || value.length > 120) ||
+        !/^#[0-9a-f]{6}$/i.test(config.accentColor) ||
+        !Array.isArray(config.tabs) || config.tabs.length < 1 || config.tabs.length > 10 ||
+        config.tabs.some((tab) => !tab || typeof tab.id !== "string" || tab.id.length > 40 ||
+          typeof tab.label !== "string" || tab.label.length > 50)) {
       return NextResponse.json({ error: "Config invalide" }, { status: 400 });
     }
 

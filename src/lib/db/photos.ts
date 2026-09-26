@@ -69,7 +69,7 @@ export async function uploadPhotoBuffer(
 }
 
 export async function uploadPhotoImage(dataUrl: string, photoId: string): Promise<string> {
-  const match = dataUrl.match(/^data:(image\/\w+);base64,(.+)$/);
+  const match = dataUrl.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+=*)$/i);
   if (!match) throw new Error("Format d'image invalide");
 
   const contentType = match[1];

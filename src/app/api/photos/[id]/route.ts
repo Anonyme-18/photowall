@@ -7,7 +7,7 @@ import {
   photoSelectColumns,
 } from "@/lib/db/photoSchema";
 import { apiError } from "@/lib/api/errors";
-import { ADMIN_COOKIE, isValidSessionToken } from "@/lib/admin/auth";
+import { ADMIN_COOKIE, isValidOwnerToken, isValidSessionToken, ownerCookieName } from "@/lib/admin/auth";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -20,9 +20,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     const isAdmin = isValidSessionToken(adminToken);
 
     if (!isAdmin) {
-      const uploadedPhotos = cookieStore.get("uploaded_photos")?.value ?? "";
-      const list = uploadedPhotos ? uploadedPhotos.split(",") : [];
-      if (!list.includes(id)) {
+      if (!isValidOwnerToken(id, cookieStore.get(ownerCookieName(id))?.value)) {
         return NextResponse.json({ error: "Non autorisé" }, { status: 403 });
       }
     }
@@ -88,9 +86,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
     const isAdmin = isValidSessionToken(adminToken);
 
     if (!isAdmin) {
-      const uploadedPhotos = cookieStore.get("uploaded_photos")?.value ?? "";
-      const list = uploadedPhotos ? uploadedPhotos.split(",") : [];
-      if (!list.includes(id)) {
+      if (!isValidOwnerToken(id, cookieStore.get(ownerCookieName(id))?.value)) {
         return NextResponse.json({ error: "Non autorisé à supprimer cette photo" }, { status: 403 });
       }
     }
